@@ -1,0 +1,21 @@
+Modified from https://www.instructables.com/The-Pi-Must-Go-On-Pi-powered-RFID-Musical-Box/
+
+Setup using bookworm lite via Raspbian imager
+attach WM8960 Audio HAT with speakers attached
+connect everything as shown in html yotolike GPIO diagram (html)
+Update everything in raspbian
+use raspi-config to activate i2c, spi, and serial interfaces
+#Install python 3
+sudo apt-get install python3-dev python3-pip
+make a project directory (in my case /home/joel/musicbox)
+Make a virtual environment
+Start the virtual environment
+use pip to install spidev and mfrc522
+Make write.py (standard version in the tutorial)
+Use write.py to write to a card or two
+Copy over Read.py
+Use the claude button setup script
+#Create the musicbox systemd service and make it run on boot
+sudo systemctl daemon-reload
+sudo systemctl enable musicbox.service
+sudo systemctl start musicbox.service

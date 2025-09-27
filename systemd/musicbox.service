@@ -1,0 +1,20 @@
+[Unit]
+Description=RFID Musical Box Service
+After=network.target
+
+[Service]
+Type=simple
+User=joel
+Group=joel
+WorkingDirectory=/home/joel/musicbox
+ExecStart=/home/joel/musicbox/venv/bin/python /home/joel/musicbox/Read.py
+Restart=always
+RestartSec=5
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

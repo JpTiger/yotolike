@@ -8,6 +8,6 @@ The basic steps to making the version described in this repo are:
 1. [Gather all materials](https://github.com/JpTiger/yotolike/blob/main/hardware/BOM/bom.md)
 2. Put together the HATs and the pi
 3. Wire everything to the exposed GPIO pins [as shown in this diagram](https://html-preview.github.io/?url=https://github.com/JpTiger/yotolike/blob/main/hardware/yotolike_gpio_diagram.html)
-4. Install raspbian with SSH enabled to a microsd and boot the pi for the first time
-5. Follow the setup instruections in the scripts folder with the script to get the audio hat working, and then get read.py and write.py working, and then set read.py to run as a service. IF you get confused, revert back to the jmcrory version of the project.
+4. Install raspbian with SSH enabled and wifi details included to a microsd and boot the pi for the first time
+5. SSH in and Follow the setup instruections in the scripts folder with the script to get the audio hat working, and then get read.py and write.py working, and then set read.py to run as a service. IF you get confused, revert back to the jmcrory version of the project.
 6. Print the case, and [assemble everythig inside it](https://github.com/JpTiger/yotolike/blob/main/hardware/case/readme.md)

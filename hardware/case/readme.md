@@ -12,3 +12,18 @@ If you want to just try the version I used, STL files for 3D printing are includ
 - Case - Lid.stl
 - Case - switch shield.stl
 - Case - ups switch nub.stl
+
+I suggest assembling the case by:
+1. printing all parts 
+2. inserting the speakers into the main container
+3. attaching the RFID reader to the card and reader stand
+4. instering the card and reader stand into the T-shaped slot that matches the bottom of it
+5. putting the little switch shield on the switch of the UPS
+6. instering the pi and hat stack (without the USB C adapter) into the space for them in the container
+7. insterting the USB C adapter in from the hole of the container into the microusb slot
+8. using hot glue or (if you're fancy) sensor-safe silicone attach the clear PETG filament to the LEDs on the pi and UPS on one end and to the holes in the container on the other
+9. Installing the rotary encoder, tightenting, and then the same with the momentary button
+10. adding the ups switch nub to the switch from the outside
+11. adding the lid
+
+If your rotraty encoder didn't come with a knob, you may need to print that as well. [This one worked for me.](https://www.thingiverse.com/thing:2549137)

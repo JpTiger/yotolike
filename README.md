@@ -7,7 +7,7 @@ The basic steps to making the version described in this repo are:
 
 1. [Gather all materials](https://github.com/JpTiger/yotolike/blob/main/hardware/BOM/bom.md)
 2. Put together the HATs and the pi
-3. Wire everything to the exposed GPIO pins [as shown in this diagram](https://html-preview.github.io/?url=https://github.com/JpTiger/yotolike/blob/main/hardware/yotolike_gpio_diagram.html)
+3. Wire everything to the exposed GPIO pins [as shown in this diagram](https://html-preview.github.io/?url=https://github.com/JpTiger/yotolike/blob/main/hardware/yotolike_gpio_diagram.html). This involved some soldering in my case to get the pins onto the RFID reader and to make the momentary button work jumper cables
 4. Install Bookwork Raspbian lite via Raspbian imager with SSH enabled and wifi details included to a microsd and boot the pi for the first time
 5. SSH in and update everything in Raspbian
 6. use raspi-config to activate i2c, spi, and serial interfaces

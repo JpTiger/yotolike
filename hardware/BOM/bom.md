@@ -14,3 +14,5 @@ In other words, this is everything I bought for the project.
 | USB C Female to Micro USB Male adapter | 1 | [eBay](https://www.ebay.com/itm/134434291262?var=433897534343) | Lets you charge via USB C instead of MicroUSB |
 
 As with any raspberry pi project, you'll also want a microSD card and a way to write to it, as well as an adequate power supply(/charging cable).
+
+I also got a few inches of clear PETG filament to act as cut-rate fiberoptics for the LEDs, but haven't yet gotten around to attaching them.

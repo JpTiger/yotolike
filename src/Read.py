@@ -190,10 +190,10 @@ class MusicBox:
         else:
             print("❌ No music currently playing")
     
-    def play_character_song(self, character_name, start_pos: float = 0.0):
+    def play_track(self, track_name, start_pos: float = 0.0):
         try:
             # Revert to hardcoded path
-            base_path = f"/home/joel/musicbox/{character_name}"
+            base_path = os.path.join(os.path.dirname(__file__), track_name)
             for ext in ['.wav', '.mp3']:
                 filepath = base_path + ext
                 if os.path.exists(filepath):
@@ -222,12 +222,12 @@ class MusicBox:
                     self.current_track_path = filepath
                     self.current_pos_sec = float(start_pos) if start_pos else 0.0
                     self.last_status_update_time = time.time()
-                    print(f"🔊 Playing {character_name} (start={start_pos:.1f}s)")
+                    print(f"🔊 Playing {track_name} (start={start_pos:.1f}s)")
                     return True
-            print(f"❌ No audio file found for {character_name}")
+            print(f"❌ No audio file found for {track_name}")
             return False
         except Exception as e:
-            print(f"❌ Error playing {character_name}: {e}")
+            print(f"❌ Error playing {track_name}: {e}")
             return False
     
     def check_music_status(self):
@@ -329,9 +329,9 @@ class MusicBox:
                                     print(f"\n💳 Card added/changed: UID={seen_uid}")
                                     if text:
                                         text = text.strip()
-                                    character = "".join(re.findall("[a-zA-Z]+", text or "")) if text else ""
-                                    if character:
-                                        if self.play_character_song(character, start_pos=0.0):
+                                    track = re.sub(r"[^A-Za-z0-9_-]", "", text or "") if text else ""
+                                    if track:
+                                        if self.play_track(track, start_pos=0.0):
                                             self.current_text = text
                                             self.paused_uid = None
                                     self.armed = False
@@ -343,9 +343,9 @@ class MusicBox:
                                     print(f"\n💳 Card added/changed: UID={seen_uid}")
                                     if text:
                                         text = text.strip()
-                                    character = "".join(re.findall("[a-zA-Z]+", text or "")) if text else ""
-                                    if character:
-                                        if self.play_character_song(character, start_pos=0.0):
+                                    track = re.sub(r"[^A-Za-z0-9_-]", "", text or "") if text else ""
+                                    if track:
+                                        if self.play_track(track, start_pos=0.0):
                                             self.current_text = text
                                             self.paused_uid = None
                                         self.armed = False

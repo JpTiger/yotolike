@@ -8,7 +8,6 @@ Enhanced RFID Musical Box with Rotary Encoder Volume Control - FIXED VERSION
 - Supports both WAV and MP3 files
 - Proper GPIO mode configuration and shutdown handling
 """
-
 import time
 from time import sleep
 import pygame
@@ -97,79 +96,88 @@ class RotaryEncoder:
         self.sw_last_state = sw_state
         return False
 
+    def is_pressed(self):
+        return GPIO.input(self.sw_pin) == 0
+
 class MusicBox:
     def __init__(self):
         self.reader = SimpleMFRC522()
-        self.current_text = "Start"
-        self.volume = 0.7  # Start at 70% volume
+        self.current_text = "Start"  # default label
+        # Ensure attribute always exists even before first play
+        self.current_text = self.current_text or ""
+        self.volume = 0.5  # Start at 50% volume
         self.is_paused = False
         self.is_playing = False
         self.running = True
         self.shutdown_requested = False
+
+        # Playback tracking
+        self.current_track_path = None
+        self.current_pos_sec = 0.0
+        self.last_status_update_time = time.time()
+        self.seek_step_sec = 10  # seconds per detent when seeking
+        self.paused_uid = None  # track UID that caused a pause due to removal
+
+        # RFID presence debouncing (required for stable presence)
+        self.current_uid = None          # UID considered 'present'
+        self.uid_last_seen = 0.0         # last time we saw the current UID
+        self.remove_grace = 1.0          # seconds with no reads before 'removed'
+
+        # NEW: RFID edge state to avoid replays / pause->restart bugs
+        self.last_uid = None     # last seen RFID UID (or None if no card present)
+        self.armed = True        # only trigger playback once per card-present cycle
         
-        # Initialize pygame mixer with better settings for Pi Zero
+        # Initialize pygame mixer
         try:
             pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=1024)
             pygame.mixer.init()
             pygame.mixer.music.set_volume(self.volume)
             print("✅ Audio system initialized")
+            # Startup sound setup
+            self.startup_channel = None
+            self.startup_sound_path = os.path.join(os.path.dirname(__file__), "startup.mp3")
         except Exception as e:
             print(f"❌ Audio initialization failed: {e}")
             raise
         
-        # Set up rotary encoder with BCM GPIO numbers
+        # Set up rotary encoder
         try:
             self.encoder = RotaryEncoder(
-                clk_pin=26,  # GPIO 26 (Physical pin 37)
-                dt_pin=16,   # GPIO 16 (Physical pin 36)
-                sw_pin=13    # GPIO 13 (Physical pin 33)
+                clk_pin=26,
+                dt_pin=16,
+                sw_pin=13
             )
             print("✅ Rotary encoder initialized")
         except Exception as e:
             print(f"❌ Encoder initialization failed: {e}")
             raise
         
-        # Set up signal handlers for clean shutdown
+        # Signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
         print("\n🎵 RFID Musical Box with Volume Control Ready!")
-        print("- Place RFID tag to play music")
-        print("- Rotate encoder to adjust volume")
-        print("- Press encoder button to pause/resume")
-        print("- Press Ctrl-C to stop")
-        print("- Supports WAV and MP3 files")
-        print(f"- Current volume: {int(self.volume * 100)}%")
-        print("-" * 50)
+
+        # Play startup sound non-blocking, if present
+        self.play_startup_sound()
     
     def _signal_handler(self, signum, frame):
-        """Handle shutdown signals gracefully"""
-        print(f"\n🛑 Received signal {signum}, initiating graceful shutdown...")
+        print(f"\n🛑 Received signal {signum}, initiating graceful shutdown.")
         self.shutdown_requested = True
         self.running = False
     
     def handle_volume_change(self, direction):
-        """Handle volume change from rotary encoder"""
-        # Adjust volume in 5% increments
         volume_step = 0.05
-        
-        if direction > 0:  # Clockwise - increase volume
+        if direction > 0:
             new_volume = min(1.0, self.volume + volume_step)
-        else:  # Counter-clockwise - decrease volume
+        else:
             new_volume = max(0.0, self.volume - volume_step)
-        
-        # Only update if volume actually changed
         if new_volume != self.volume:
             self.volume = new_volume
             pygame.mixer.music.set_volume(self.volume)
-            
-            # Visual feedback
-            volume_percent = int(self.volume * 100)
-            volume_bar = "█" * (volume_percent // 5) + "░" * (20 - (volume_percent // 5))
-            print(f"🔊 Volume: {volume_percent:3d}% [{volume_bar}]")
+            print(f"🔊 Volume: {int(self.volume*100)}%")
     
     def handle_pause_resume(self):
-        """Handle pause/resume from rotary encoder button"""
         if self.is_playing:
             if self.is_paused:
                 pygame.mixer.music.unpause()
@@ -182,188 +190,202 @@ class MusicBox:
         else:
             print("❌ No music currently playing")
     
-    def play_character_song(self, character_name):
-        """Play the song for the given character - supports WAV and MP3"""
+    def play_character_song(self, character_name, start_pos: float = 0.0):
         try:
-            # Try both WAV and MP3 extensions
+            # Revert to hardcoded path
             base_path = f"/home/joel/musicbox/{character_name}"
-            
             for ext in ['.wav', '.mp3']:
                 filepath = base_path + ext
                 if os.path.exists(filepath):
-                    print(f"\n🎵 Loading: {character_name}")
-                    print(f"📁 File: {filepath}")
-                    
-                    # Stop current music first
                     if pygame.mixer.music.get_busy():
                         pygame.mixer.music.stop()
-                        time.sleep(0.1)  # Brief pause to ensure stop completes
-                    
+                        time.sleep(0.1)
                     pygame.mixer.music.load(filepath)
                     pygame.mixer.music.set_volume(self.volume)
-                    pygame.mixer.music.play()
-                    
+                    # Fade out startup sound if still playing
+                    try:
+                        if getattr(self, "startup_channel", None) and self.startup_channel.get_busy():
+                            self.startup_channel.fadeout(300)
+                    except Exception:
+                        pass
+
+                    if start_pos and start_pos > 0:
+                        try:
+                            pygame.mixer.music.play(start=start_pos)
+                        except TypeError:
+                            pygame.mixer.music.play()
+                            pygame.mixer.music.set_pos(start_pos)
+                    else:
+                        pygame.mixer.music.play()
                     self.is_playing = True
                     self.is_paused = False
-                    
-                    print(f"🔊 Playing {character_name} at {int(self.volume * 100)}% volume")
+                    self.current_track_path = filepath
+                    self.current_pos_sec = float(start_pos) if start_pos else 0.0
+                    self.last_status_update_time = time.time()
+                    print(f"🔊 Playing {character_name} (start={start_pos:.1f}s)")
                     return True
-            
-            # If we get here, no file was found
-            print(f"❌ No audio file found for {character_name} (.wav or .mp3)")
-            return False
-            
-        except pygame.error as e:
-            print(f"❌ Error loading {character_name}: {e}")
+            print(f"❌ No audio file found for {character_name}")
             return False
         except Exception as e:
-            print(f"❌ Unexpected error playing {character_name}: {e}")
+            print(f"❌ Error playing {character_name}: {e}")
             return False
     
     def check_music_status(self):
-        """Check if music is still playing and update status"""
-        if self.is_playing and not self.is_paused:
-            if not pygame.mixer.music.get_busy():
-                print("🎵 Song finished")
-                self.is_playing = False
-                self.is_paused = False
+        now = time.time()
+        if self.is_playing and not self.is_paused and pygame.mixer.music.get_busy():
+            delta = now - self.last_status_update_time
+            if delta > 0:
+                self.current_pos_sec += delta
+        self.last_status_update_time = now
+        if self.is_playing and not self.is_paused and not pygame.mixer.music.get_busy():
+            print("🎵 Song finished")
+            self.is_playing = False
     
+    def handle_seek(self, direction):
+        """Seek within the current track; press + rotate to scrub."""
+        if not self.current_track_path:
+            print("↔️  Seek ignored (no track loaded)")
+            return
+        step = self.seek_step_sec * (1 if direction > 0 else -1)
+        new_pos = max(0.0, self.current_pos_sec + step)
+        was_playing = self.is_playing and not self.is_paused
+        was_paused = self.is_paused
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load(self.current_track_path)
+            pygame.mixer.music.set_volume(self.volume)
+            try:
+                pygame.mixer.music.play(start=new_pos)
+            except TypeError:
+                pygame.mixer.music.play()
+                pygame.mixer.music.set_pos(new_pos)
+            self.current_pos_sec = new_pos
+            self.last_status_update_time = time.time()
+            if was_paused:
+                pygame.mixer.music.pause()
+                self.is_paused = True
+                self.is_playing = True
+                print(f"⏱️  Scrubbed to {new_pos:.1f}s (paused)")
+            elif was_playing:
+                self.is_playing = True
+                self.is_paused = False
+                print(f"⏩⏪ Seek to {new_pos:.1f}s")
+            else:
+                self.is_playing = True
+                self.is_paused = False
+                print(f"▶️  Restarted at {new_pos:.1f}s after finish")
+        except Exception as e:
+            print(f"⚠️ Seek error: {e}")
+
+    def play_startup_sound(self):
+        try:
+            if os.path.exists(self.startup_sound_path):
+                snd = pygame.mixer.Sound(self.startup_sound_path)
+                snd.set_volume(self.volume)
+                self.startup_channel = snd.play()
+            else:
+                # No startup sound file; skip silently
+                pass
+        except Exception as e:
+            print(f"⚠️ Startup sound error: {e}")
+
     def run(self):
-        """Main loop for RFID detection with encoder polling"""
         try:
             rfid_check_time = 0
             status_check_time = 0
-            loop_count = 0
-            
-            print("🚀 Starting main loop...")
-            
             while self.running and not self.shutdown_requested:
                 current_time = time.time()
-                loop_count += 1
-                
-                # Check encoder rotation (high priority)
-                try:
-                    rotation = self.encoder.check_rotation()
-                    if rotation != 0:
-                        self.handle_volume_change(rotation)
-                except Exception as e:
-                    print(f"⚠️  Encoder rotation error: {e}")
-                
-                # Check encoder button (high priority)
-                try:
-                    if self.encoder.check_button():
-                        self.handle_pause_resume()
-                except Exception as e:
-                    print(f"⚠️  Encoder button error: {e}")
-                
-                # Check music status every second
+
+                direction = self.encoder.check_rotation()
+                if direction != 0:
+                    if self.encoder.is_pressed():
+                        self.handle_seek(direction)
+                    else:
+                        self.handle_volume_change(direction)
+                # Ignore simple button taps for now
+                # if self.encoder.check_button(): pass
                 if current_time - status_check_time > 1.0:
                     self.check_music_status()
                     status_check_time = current_time
-                
-                # Check RFID every 0.5 seconds to avoid blocking encoder
+                # RFID edge-triggered logic (debounced)
                 if current_time - rfid_check_time > 0.5:
                     try:
-                        # Quick RFID read with timeout
                         tag_id, text = self.reader.read_no_block()
-                        
-                        if tag_id is not None and text and text.strip():
-                            text = text.strip()
-                            print(f"\n🔍 Tag detected - ID: {tag_id}")
-                            print(f"📝 Text: '{text}'")
-                            
-                            # Check if it's the same character and music is still playing
-                            if (text == self.current_text and 
-                                pygame.mixer.music.get_busy() and 
-                                not self.is_paused):
-                                print("🔄 Same character already playing, continuing...")
-                            else:
-                                # Extract character name (letters only)
-                                character = "".join(re.findall("[a-zA-Z]+", text))
-                                
-                                if character:
-                                    if self.play_character_song(character):
-                                        self.current_text = text
+                        seen_uid = str(tag_id) if tag_id is not None else None
+                        if seen_uid is not None:
+                            if self.current_uid is None:
+                                # Rising edge: new card detected
+                                self.current_uid = str(seen_uid)
+                                self.uid_last_seen = current_time
+                                # Resume first if this is the same UID we paused on
+                                if self.is_paused and self.current_track_path and str(self.paused_uid) == str(seen_uid):
+                                    pygame.mixer.music.unpause()
+                                    self.is_paused = False
+                                    self.is_playing = True
+                                    self.last_status_update_time = time.time()
+                                    print("▶️  Resumed after reinsert")
+                                    self.armed = False
                                 else:
-                                    print("⚠️  No valid character name found in tag")
-                        
+                                    print(f"\n💳 Card added/changed: UID={seen_uid}")
+                                    if text:
+                                        text = text.strip()
+                                    character = "".join(re.findall("[a-zA-Z]+", text or "")) if text else ""
+                                    if character:
+                                        if self.play_character_song(character, start_pos=0.0):
+                                            self.current_text = text
+                                            self.paused_uid = None
+                                    self.armed = False
+                            else:
+                                # Card still present; check if changed UID
+                                self.uid_last_seen = current_time
+                                if str(seen_uid) != str(self.current_uid):
+                                    self.current_uid = str(seen_uid)
+                                    print(f"\n💳 Card added/changed: UID={seen_uid}")
+                                    if text:
+                                        text = text.strip()
+                                    character = "".join(re.findall("[a-zA-Z]+", text or "")) if text else ""
+                                    if character:
+                                        if self.play_character_song(character, start_pos=0.0):
+                                            self.current_text = text
+                                            self.paused_uid = None
+                                        self.armed = False
+                        else:
+                            # No UID this poll; only consider removal after grace period
+                            if self.current_uid is not None and (current_time - self.uid_last_seen) > self.remove_grace:
+                                print("💳 Card removed")
+                                self.armed = True
+                                if self.is_playing and not self.is_paused:
+                                    pygame.mixer.music.pause()
+                                    self.is_paused = True
+                                    # Remember last paused UID (so the same card resumes)
+                                    self.paused_uid = str(self.current_uid)
+                                    print("⏸️  Paused on card removal")
+                                self.current_uid = None
                         rfid_check_time = current_time
-                        
                     except Exception as e:
-                        print(f"⚠️  RFID read error: {e}")
+                        print(f"⚠️ RFID read error: {e}")
                         rfid_check_time = current_time
-                
-                # Debug output every 5000 loops (less frequent)
-                if loop_count % 5000 == 0:
-                    clk = GPIO.input(26)
-                    dt = GPIO.input(16)
-                    sw = GPIO.input(13)
-                    print(f"🔍 Loop {loop_count} - Encoder states: CLK:{clk} DT:{dt} SW:{sw}")
-                
-                # Small delay to prevent excessive CPU usage
-                time.sleep(0.002)  # 2ms delay
-                    
-        except KeyboardInterrupt:
-            print("\n👋 Keyboard interrupt received...")
-        except Exception as e:
-            print(f"❌ Unexpected error in main loop: {e}")
+                time.sleep(0.01)
         finally:
-            print("🛑 Main loop ended, starting cleanup...")
             self.cleanup()
     
     def cleanup(self):
-        """Clean up resources properly"""
-        print("🧹 Starting cleanup process...")
-        self.running = False
-        
-        # Stop any playing music
-        try:
-            if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-                print("🎵 Stopping music...")
-                pygame.mixer.music.stop()
-                time.sleep(0.1)
-        except Exception as e:
-            print(f"⚠️  Music stop error: {e}")
-        
-        # Clean up pygame
+        print("🧹 Cleanup starting.")
         try:
             if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
                 pygame.mixer.quit()
-                print("✅ Pygame audio cleanup complete")
-        except Exception as e:
-            print(f"⚠️  Pygame cleanup error: {e}")
-        
-        # Clean up GPIO
+        except: pass
         try:
             GPIO.cleanup()
-            print("✅ GPIO cleanup complete")
-        except Exception as e:
-            print(f"⚠️  GPIO cleanup error: {e}")
-        
-        print("✅ Cleanup complete - application terminated safely")
+        except: pass
+        print("✅ Cleanup complete")
 
 def main():
-    """Main function with proper error handling"""
-    # Set GPIO mode to BCM and disable warnings
     GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)  # Use BCM numbering
-    
-    print("🎵 RFID Musical Box Starting...")
-    print("🔧 GPIO mode set to BCM")
-    
-    try:
-        musicbox = MusicBox()
-        musicbox.run()
-    except KeyboardInterrupt:
-        print("\n👋 Application interrupted by user")
-    except Exception as e:
-        print(f"❌ Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        print("🧹 Final GPIO cleanup...")
-        GPIO.cleanup()
-        print("👋 Application ended")
+    GPIO.setmode(GPIO.BCM)
+    musicbox = MusicBox()
+    musicbox.run()
 
 if __name__ == "__main__":
     main()

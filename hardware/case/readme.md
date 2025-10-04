@@ -21,7 +21,7 @@ I suggest assembling the case by:
 5. putting the little switch shield on the switch of the UPS
 6. instering the pi and hat stack (without the USB C adapter) into the space for them in the container
 7. insterting the USB C adapter in from the hole of the container into the microusb slot
-8. using hot glue or (if you're fancy) sensor-safe silicone attach the clear PETG filament to the LEDs on the pi and UPS on one end and to the holes in the container on the other
+8. using poster putty or(if you're confident and dexterous) hot glue or to attach the clear PETG filament to the LEDs on the pi and UPS on one end and to the holes in the container on the other. I interted a long strand through the holes, poked it with poster putty on a toothpick until it stuck direclty onto the LEDs, then trimmed the other end of the filament at the hole end.
 9. Installing the rotary encoder, tightenting, and then the same with the momentary button
 10. adding the ups switch nub to the switch from the outside
 11. adding the lid
